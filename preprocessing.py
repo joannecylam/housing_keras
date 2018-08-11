@@ -1,148 +1,94 @@
 import numpy as np
 import pandas as pd
-
-categr_fields = [
-    "MSSubClass",
-    "MSZoning",
-    "Street",
-    "Alley",
-    "LotShape",
-    "LandContour",
-    "Utilities",
-    "LotConfig",
-    "LandSlope",
-    "Neighborhood",
-    "Condition1",
-    "Condition2",
-    "BldgType",
-    "HouseStyle",
-    "RoofStyle",
-    "RoofMatl",
-    "Exterior1st",
-    "Exterior2nd",
-    "MasVnrType",
-    "Foundation",
-    "Heating",
-    "CentralAir",
-    "Electrical",
-    "GarageType",
-    "SaleType",
-    "MiscFeature",
-    "SaleCondition"
-]
+from sklearn.preprocessing import MinMaxScaler
+from data_processing_config import categr_fields, satisfaction, live_qua, eval_fields, sales_attrs
 
 
-# In[21]:
+class PrepareData(object):
+    '''
+    Preprocess data and store it in dataframe
+    '''
+    def __init__(self):
+        self.categr_fields = categr_fields
+        self.eval_fields = eval_fields
+        self.sales_attrs = sales_attrs
+        self.model_attr = None
 
+    def get_train_data(self, filepath="all/train.csv"):
+        df = self.get_num_data(filepath=filepath, data_type="train")
+        train_attrs = df.columns.tolist()
+        train_attrs.remove("SalePrice")
+        self.model_attr = train_attrs
+        df.drop('Id', axis=1, inplace=True)
+        return self.normalize_df(df), df[["SalePrice"]]
 
-satisfaction = {
-        "Ex": 5,
-        "Gd": 4,
-        "TA": 3,
-        "Fa": 2,
-        "Po": 1,
-        "NA": 0,
-    }
-
-
-live_qua = {
-    "GLQ":6,
-    "ALQ":	5,
-    "BLQ": 4,
-    "Rec" : 3,
-    "LwQ": 2,
-    "Unf": 1,
-    "NA": 0
-}
-
-eval_fields = {
-    "ExterQual":satisfaction,
-    "ExterCond": satisfaction,
-    "BsmtQual": satisfaction,
-    "BsmtCond": satisfaction,
-    "BsmtExposure": {
-        "Gd": 4,
-        "Av": 3,
-        "Mn": 2,
-        "No": 1,
-        "NA": 0,
-    } ,
-    "BsmtFinType1": live_qua,
-    "BsmtFinType2": live_qua,
-    "HeatingQC": satisfaction,
-    "KitchenQual": satisfaction,
-    "Functional":{
-        "Typ": 7,
-        "Min1": 6,
-        "Min2": 5,
-        "Mod": 4,
-        "Maj1": 3,
-        "Maj2": 2,
-        "Sev": 1,
-        "Sal": 0
-    },
-    "FireplaceQu": satisfaction,
-    "GarageFinish":{
-        "Fin":3,
-        "RFn": 2,
-        "Unf": 1,
-        "NA": 0
-    },
-    "GarageQual":satisfaction,
-    "GarageCond":satisfaction,
-    "PavedDrive":{
-        "Y": 2,
-        "P": 1,
-        "N": 0
-    },
-    "PoolQC":satisfaction,
-    "Fence":{
-        "GdPrv": 2,
-        "MnPrv": 1,
-        "GdWo": 2,
-        "MnWw": 1,
-        "NA": 0
-    },
-}
-
-def get_bin_values(df, categr_fields):
-    bin_features = {}
-    for field in categr_fields:
-        attrs = df[field].unique()
-        for attr in attrs:
-            fieldname = field + "_" + str(attr)
-            bin_vec = df[field] == attr
-            bin_features[fieldname] = bin_vec.astype(int)
-    return bin_features
-
-
-def convert_str_values(df, eval_fields):
-    for field, value_map in eval_fields.iteritems():
-        tmp = []
-        non_zeros = []
-        for v in df[field]:
-            if value_map.get(v):
-                value = value_map[v]
-                tmp.append(value)
-                non_zeros.append(value)
+    def get_test_data(self, filepath="all/test.csv"):
+        if not self.model_attr:
+            raise ValueError("please load train data first")
+        test_df = self.get_num_data(filepath=filepath, data_type="test")
+        test_df_new = pd.DataFrame()
+        for attr in self.model_attr:
+            if attr in test_df.columns.tolist():
+                test_df_new[attr] = test_df[attr]
             else:
-                tmp.append("NA")
-        aver_v = np.average(non_zeros)
-        # assign average value to None values
-        value_arr = [aver_v if x=="NA" else x for x in tmp]
-        df[field] = value_arr
-    return df
+                test_df_new[attr] = np.zeros(test_df.shape[0])
+        item_id = test_df[['Id']]
+        test_df_new.drop('Id', axis=1, inplace=True)
+        return self.normalize_df(test_df_new), item_id
+
+    def normalize_df(self, df):
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        values = scaler.fit_transform(df.values)
+        return pd.DataFrame(values, columns=df.columns.tolist())
+
+    def get_num_data(self, filepath, data_type):
+        df = pd.read_csv(filepath)
+        bin_features = {}
+        for field in self.categr_fields:
+            attrs = df[field].unique()
+            for attr in attrs:
+                fieldname = field + "_" + str(attr)
+                bin_vec = df[field] == attr
+                bin_features[fieldname] = bin_vec.astype(int)
+        bin_df = pd.DataFrame(bin_features)        
+        # convert the other str fields
+        df = self.convert_str_values(df)
+        final_df = pd.concat([df, bin_df], axis=1)
+        if data_type=="train":
+            final_df = self.rearrage_order(final_df)
+
+        for j in range(0, final_df.shape[1]):        
+            final_df.iloc[:,j] = final_df.iloc[:,j].fillna(final_df.iloc[:,j].mean())
+        return final_df
+
+    def rearrage_order(self, df):
+        list_attr = df.columns.tolist()
+        list_attr.remove('SalePrice')
+        return df[list_attr + ['SalePrice']]
+
+    def convert_str_values(self, df):
+        # drop the binary features
+        df.drop(labels=self.categr_fields, axis=1, inplace=True)
+        # convert other string fields
+        for field, value_map in self.eval_fields.iteritems():
+            tmp = []
+            non_zeros = []
+            for v in df[field]:
+                if value_map.get(v):
+                    value = value_map[v]
+                    tmp.append(value)
+                    non_zeros.append(value)
+                else:
+                    tmp.append("NA")
+            aver_v = np.average(non_zeros)
+            # assign average value to None values
+            value_arr = [aver_v if x=="NA" else x for x in tmp]
+            df[field] = value_arr
+        return df
+
+    def export_csv(df, filename, index=False):
+        df.to_csv(filename, index=index)
 
 if __name__ == "__main__":
-
-    df = pd.read_csv("all/train.csv")
-    bin_features = get_bin_values(df, categr_fields)
-    bin_df = pd.DataFrame.from_dict(bin_features)
-    # drop the binary features
-    df = df.drop(labels=categr_fields, axis=1)
-    # convert the other str fields
-    convert_str_values(df, eval_fields)
-    # combine with binary feature vectors
-    final_df = pd.concat([df, bin_df], axis=1)
-    final_df.to_csv("cleaned_data.csv")
-
+    ppd = PrepareData()
+    ppd.get_num_data()
