@@ -14,13 +14,16 @@ class PrepareData(object):
         self.sales_attrs = sales_attrs
         self.model_attr = None
 
-    def get_train_data(self, filepath="all/train.csv"):
+    def get_train_data(self, filepath="all/train.csv", drop_cols=['Id']):
         df = self.get_num_data(filepath=filepath, data_type="train")
+        sale_prices = df[['SalePrice']]
+        df.drop(drop_cols, axis=1, inplace=True)
         train_attrs = df.columns.tolist()
+        if "Id" in train_attrs:
+            train_attrs.remove("Id")
         train_attrs.remove("SalePrice")
         self.model_attr = train_attrs
-        df.drop('Id', axis=1, inplace=True)
-        return self.normalize_df(df), df[["SalePrice"]]
+        return self.normalize_df(df), df[['SalePrice']]
 
     def get_test_data(self, filepath="all/test.csv"):
         if not self.model_attr:
@@ -33,7 +36,7 @@ class PrepareData(object):
             else:
                 test_df_new[attr] = np.zeros(test_df.shape[0])
         item_id = test_df[['Id']]
-        test_df_new.drop('Id', axis=1, inplace=True)
+        # test_df_new.drop('Id', axis=1, inplace=True)
         return self.normalize_df(test_df_new), item_id
 
     def normalize_df(self, df):

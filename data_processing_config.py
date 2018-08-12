@@ -100,7 +100,7 @@ eval_fields = {
 }
 
 sales_attrs = [
-    'SalePrice',
+    # 'SalePrice',
     'SaleCondition_Abnorml',
     'SaleCondition_AdjLand',
     'SaleCondition_Alloca',
