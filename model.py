@@ -4,7 +4,7 @@ import keras
 from keras.layers import Dense
 from keras.models import Sequential
 from keras.utils import to_categorical
-from keras.optimizers import SGD 
+from keras.optimizers import SGD
 from keras.callbacks import EarlyStopping
 from keras.utils import np_utils
 import itertools
@@ -68,9 +68,9 @@ def normalize_price(sale_price):
 def train_model(train_x, train_y, batch_size, test_x=None, test_y=None):
     model = Sequential()
     model.add(LSTM(50, input_shape=(train_x.shape[1], train_x.shape[2]), return_sequences=True))
-    model.add(Dropout(0.2))
+    model.add(Dropout(0.5))
     model.add(LSTM(100))
-    model.add(Dropout(0.2))
+    model.add(Dropout(0.5))
     model.add(Dense(200))
     model.add(Dropout(0.2))
     model.add(Dense(1))
@@ -88,9 +88,9 @@ def train_model(train_x, train_y, batch_size, test_x=None, test_y=None):
 
 if __name__ == "__main__":
     ppd = PrepareData()
-    df , sale_price = ppd.get_train_data(time_series=True, drop_cols = ['Id'] + ppd.sales_attrs)
+    df, sale_price = ppd.get_train_data(time_series=True, drop_cols=['Id'] + ppd.sales_attrs)
     df.drop("SalePrice", axis=1, inplace=True)
-
+    # df.sort_values(["OverallQual"])
     batch_size = 10
     n_shift = 0
     reframed = series_to_supervised(df.values, n_shift)
@@ -133,5 +133,4 @@ if __name__ == "__main__":
     predict_results = model.predict(test_reframed_data)
     price = convert_to_price(sale_price, predict_results)
     test_ids['SalePrice'] = price
-    test_ids.to_csv("submissions/submission_lstm_{}.csv".format(datetime.datetime.now().strftime("%Y-%m-%d_%H_%M")), index=False)
-
+    test_ids.to_csv("submission_lstm_{}.csv".format(datetime.datetime.now().strftime("%Y-%m-%d_%H_%M")), index=False)
